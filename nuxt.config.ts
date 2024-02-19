@@ -8,5 +8,10 @@ export default defineNuxtConfig({
     timeline: {
       enabled: true
     }
-  }
+  },
+  runtimeConfig: {
+    public: { 
+      baseUrl: process.env.BASE_URL ?? 'http://localhost:3000'
+    }
+}
 })
