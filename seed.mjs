@@ -4,10 +4,16 @@ import 'dotenv/config'
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY, {
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdrem1ldXNueGdraHVhaW9qcmdmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcwNzkzMzEwMSwiZXhwIjoyMDIzNTA5MTAxfQ.7JKaf8n8JJJpnmrhOKqZRVzKjeXS__MmtMS-e6Aw_fI', {
   auth: { persistSession: false }
 })
 const categories = ['Food', 'Housing', 'Car', 'Entertainment']
+
+const { data: { users }, error } = await supabase.auth.admin.listUsers()
+
+const userIds = users.map(user => user.id)
+
+// console.log(userIds)
 
 async function seedTransactions() {
   // Delete existing data
@@ -20,54 +26,58 @@ async function seedTransactions() {
   }
 
   let transactions = []
-
-  for (let year = new Date().getFullYear(); year > new Date().getFullYear() - 2; year--) {
-    for (let i = 0; i < 15; i++) {
-      const date = new Date(
-        year,
-        faker.number.int({ min: 0, max: 11 }),
-        faker.number.int({ min: 1, max: 28 })
-      )
-
-      let type, category
-      const typeBias = Math.random()
-
-      if (typeBias < 0.85) {
-        type = 'Expense'
-        category = faker.helpers.arrayElement(categories) // Category only for 'Expense'
-      } else if (typeBias < 0.95) {
-        type = 'Income'
-      } else {
-        type = faker.helpers.arrayElement(['Saving', 'Investment'])
+  for (const user of userIds ) {
+    for (let year = new Date().getFullYear(); year > new Date().getFullYear() - 2; year--) {
+      for (let i = 0; i < 15; i++) {
+        const date = new Date(
+          year,
+          faker.number.int({ min: 0, max: 11 }),
+          faker.number.int({ min: 1, max: 28 })
+        )
+  
+        let type, category
+        const typeBias = Math.random()
+  
+        if (typeBias < 0.85) {
+          type = 'Expense'
+          category = faker.helpers.arrayElement(categories) // Category only for 'Expense'
+        } else if (typeBias < 0.95) {
+          type = 'Income'
+        } else {
+          type = faker.helpers.arrayElement(['Saving', 'Investment'])
+        }
+  
+        let amount
+        switch (type) {
+          case 'Income':
+            amount = faker.number.int({ min: 1000, max: 2000 })
+            break
+          case 'Expense':
+            amount = faker.number.int({ min: 100, max: 300 })
+            break
+          case 'Saving':
+          case 'Investment':
+            amount = faker.number.int({ min: 1500, max: 3000 })
+            break
+          default:
+            amount = 0
+        }
+  
+        transactions.push({
+          created_at: date,
+          amount,
+          type,
+          description: faker.lorem.sentence(),
+          category: type === 'Expense' ? category : null, // Category only for 'Expense',
+          user_id: user
+        })
       }
-
-      let amount
-      switch (type) {
-        case 'Income':
-          amount = faker.number.int({ min: 1000, max: 2000 })
-          break
-        case 'Expense':
-          amount = faker.number.int({ min: 100, max: 300 })
-          break
-        case 'Saving':
-        case 'Investment':
-          amount = faker.number.int({ min: 1500, max: 3000 })
-          break
-        default:
-          amount = 0
-      }
-
-      transactions.push({
-        created_at: date,
-        amount,
-        type,
-        description: faker.lorem.sentence(),
-        category: type === 'Expense' ? category : null // Category only for 'Expense'
-      })
     }
+    
   }
-
+  
   const { error: insertError } = await supabase.from('transactions').upsert(transactions)
+  
 
   if (insertError) {
     console.error('Error inserting data:', insertError)
@@ -76,4 +86,4 @@ async function seedTransactions() {
   }
 }
 
-seedTransactions().catch(console.error)
+ seedTransactions().catch(console.error)

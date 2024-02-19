@@ -1,9 +1,14 @@
 <script setup>
 import { z } from 'zod'
  const props = defineProps({
-        modelValue: Boolean
+        modelValue: Boolean,
+        transaction: {
+            type: Object,
+            required: false
+        }
     })
-const emit = defineEmits(['update:modelValue'])
+const isEditing = computed(() => !!props.transaction)
+const emit = defineEmits(['update:modelValue', 'saved'])
 
 const defaultSchema = z.object({
     created_at: z.string(),
@@ -29,19 +34,49 @@ const savingsSchema = z.object({
 })
 
 const schema = z.intersection(
-    z.discriminatedUnion('type', [incomeSchema, expenseSchema, investmentSchema, savingsSchema ]),
+    z.discriminatedUnion('type', [ incomeSchema, expenseSchema, investmentSchema, savingsSchema ]),
     defaultSchema
 )
 
 const form = ref()
+const isLoading = ref(false)
+const subabase = useSupabaseClient()
+const { toastSuccess, toastError } = useAppToast()
 
 const save = async () => {
     if (form.value.errors.length) return
-
+    isLoading.value = true
     // store into the supabase
+    try {
+        const { error} = await subabase.from('transactions')
+        .upsert({...state.value, id: props.transaction?.id})
+
+        if (!error) {
+            toastSuccess({
+                'title': 'Transaction Saved'
+            })
+            isOpen.value = false
+            emit('saved')
+            return
+        }
+        if (error) throw error
+    } catch (e) {
+        toastError({
+            title: 'Transaction not saved',
+            description: e.message,
+        })
+    } finally {
+        isLoading.value = false
+    }
 }
 
-const initialState = {
+const initialState = isEditing.value ? {
+    type: props.transaction.type,
+    amount: props.transaction.amount,
+    created_at: props.transaction.created_at.split('T')[0],
+    description: props.transaction.description,
+    category: props.transaction.category
+} : {
     type: undefined,
     amount: 0,
     created_at: undefined,
@@ -49,9 +84,7 @@ const initialState = {
     category: undefined
 }
 
-const state = ref({
-    ...initialState
-})
+const state = ref({...initialState})
 
 const resetForm = () => {
     Object.assign(state.value, initialState)
@@ -74,11 +107,11 @@ import { categories, types } from '~/constants'
      <UModal v-model="isOpen">
         <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-100 dark:divide-gray-800' }">
             <template #header>
-                    Add New Transaction
+                    {{ isEditing ? 'Edit' : 'Add' }}Add New Transaction
             </template>
-            <UForm :state="state" :schema="schema" ref="form" @submit.prevent="save">
+            <UForm :state="state" :schema="schema" ref="form" @submit="save">
                 <UFormGroup label="Transaction Type" :required="true" name="type" class="mb-4">
-                    <USelect placeholder="Select a Transaction Type" :options="types" v-model="state.type" />
+                    <USelect :disabled="isEditing" placeholder="Select a Transaction Type" :options="types" v-model="state.type" />
                 </UFormGroup>
 
                 <UFormGroup label="Amount" :required="true" name="amount" class="mb-4">
@@ -97,7 +130,7 @@ import { categories, types } from '~/constants'
                     <USelect placeholder="Pick a Category" :options="categories" v-model="state.category"/>
                 </UFormGroup>
 
-                <UButton type="submit" color="black" variant="solid" label="Save" />
+                <UButton type="submit" color="black" variant="solid" label="Save" :loading="isLoading" />
             </UForm>
       </UCard>
     </UModal>
