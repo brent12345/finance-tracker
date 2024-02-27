@@ -4,10 +4,6 @@ export default defineNuxtConfig({
   supabase: {redirect: true},
   devtools: {
     enabled: true,
-
-    timeline: {
-      enabled: true
-    }
   },
   runtimeConfig: {
     public: { 
